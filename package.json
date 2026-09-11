@@ -1,0 +1,16 @@
+{
+  "name": "speciloop",
+  "private": true,
+  "version": "0.4.1",
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env server.mjs",
+    "start": "node server.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "node --env-file-if-exists=.env server.mjs",
+    "test": "node --test src/domain/verifier.test.js src/spoken-guidance.test.js src/evidence-client.test.js src/voice.test.js src/interaction-coordinator.test.js src/workflow-policy.test.js server/evidence-record.test.mjs server/firestore-evidence-store.test.mjs server/voice-access.test.mjs scripts/validate-release.test.mjs",
+    "validate:release": "node scripts/validate-release.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "verify": "npm test && npm run build && npm run smoke"
+  }
+}

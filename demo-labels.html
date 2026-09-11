@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07110f" />
+    <title>SpeciLoop — Synthetic demo labels</title>
+    <link rel="stylesheet" href="/src/demo-labels.css" />
+  </head>
+  <body>
+    <header>
+      <h1>SpeciLoop synthetic QR labels</h1>
+      <p>Print this page or display it on a second device, then hold a label inside the camera frame.</p>
+      <p class="warning">Synthetic demonstration data only — not a clinical label.</p>
+    </header>
+    <main class="labels">
+      <article class="label label--wrong">
+        <p class="flag">INTENTIONAL MISMATCH</p>
+        <div class="qr" id="wrong-qr" aria-label="QR code containing SL-OR318-02"></div>
+        <p class="code">SL-OR318-02</p>
+        <p class="case">Belongs to synthetic case OR-318</p>
+      </article>
+      <article class="label">
+        <p class="flag">EXPECTED LABEL</p>
+        <div class="qr" id="correct-qr" aria-label="QR code containing SL-OR204-01"></div>
+        <p class="code">SL-OR204-01</p>
+        <p class="case">Belongs to active synthetic case OR-204</p>
+      </article>
+    </main>
+    <p class="render-error" id="render-error" role="alert" hidden></p>
+    <div class="actions"><button id="print-labels" type="button">Print demo labels</button></div>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script type="module" src="/src/demo-labels.js"></script>
+  </body>
+</html>
