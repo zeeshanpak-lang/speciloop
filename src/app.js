@@ -45,6 +45,8 @@ let storageState = "NOT SAVED";
 let savingEvidence = false;
 let pendingCompletion = null;
 let pendingFocusSelector = null;
+let workspaceStarted = false;
+let motionPaused = false;
 
 function escapeHtml(value) {
   return String(value)
@@ -79,6 +81,7 @@ function fieldSummary(parsed) {
 
 function resultMarkup() {
   if (!notice) return "";
+  if (session.phase === "COMPLETE" && notice.status === "ACCEPT") return "";
   const mark = notice.status === "ACCEPT" ? "✓" : notice.status === "BLOCK" ? "!" : notice.status === "READY" ? "…" : "↻";
   const retryInstructions = {
     AWAIT_CALLOUT: "Resolve the issue, then provide a fresh complete workflow-role surgeon statement.",
@@ -95,8 +98,22 @@ function resultMarkup() {
         <p class="eyebrow">${escapeHtml(notice.status)}</p>
         <h3>${escapeHtml(notice.summary)}</h3>
         ${reminder}
+        ${comparisonMarkup()}
       </div>
     </section>`;
+}
+
+function comparisonMarkup() {
+  if (!notice || notice.status === "ACCEPT" || !notice.parsed) return "";
+  const fields = [["laterality", "Side"], ["anatomicalStructure", "Specimen"], ["disposition", "Disposition"], ["containerCount", "Containers"]];
+  const rows = fields.map(([field, label]) => {
+    const received = notice.parsed[field];
+    const expected = session.order[field];
+    const differs = received !== expected;
+    const display = (value) => value == null ? "Not resolved" : String(value).replaceAll("_", " ").toLowerCase();
+    return `<tr class="${differs ? "comparison-mismatch" : ""}"><th scope="row">${label}</th><td>${escapeHtml(display(expected))}</td><td>${escapeHtml(display(received))}${differs ? " <span aria-label='Needs correction'>!</span>" : ""}</td></tr>`;
+  }).join("");
+  return `<div class="comparison-wrap"><table class="comparison"><caption>Last submitted statement · field comparison only, not acceptance</caption><thead><tr><th>Field</th><th>Expected</th><th>Submitted</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function eventModeMarkup(event) {
@@ -119,14 +136,18 @@ function evidenceMarkup() {
       </div>
     </li>`).join("");
   return `
-    <aside class="evidence-panel">
+    <dialog id="evidence-dialog" class="evidence-panel" aria-label="Session evidence">
+      <button type="button" id="close-evidence" class="secondary-action drawer-close">Close evidence ×</button>
+      <details class="evidence-disclosure" open>
+      <summary>Evidence trail <span>${session.audit.length} events</span></summary>
       <div class="section-heading">
         <div><p class="eyebrow">${receipt ? "Server receipt events" : "In-session evidence"}</p><h2>Evidence trail</h2></div>
         <span class="count-pill">${session.audit.length}</span>
       </div>
       <p class="panel-note">Event times, workflow roles, text, and input modes are client-reported. The server replays accepted and rejected submitted events.</p>
       <ol class="timeline">${events}</ol>
-    </aside>`;
+      </details>
+    </dialog>`;
 }
 
 function sampleButtons(disabled) {
@@ -170,7 +191,7 @@ function captureMarkup() {
   const labelMode = session.phase === "AWAIT_LABEL";
   const captureActive = coordinator.captureActive;
   const voiceControl = labelMode
-    ? `<div class="scanner-control">
+    ? `<div class="capture-instrument capture-instrument--scanner"><div class="scan-symbol" aria-hidden="true">⌗</div><p class="instrument-label">Synthetic QR label</p><div class="scanner-control">
         <div><span class="scanner-control__pulse"></span><strong>${escapeHtml(scannerState)}</strong></div>
         <button id="scanner-button" class="voice-button">${scannerBinding ? "Stop camera" : "Start camera scan"}</button>
       </div>
@@ -179,11 +200,11 @@ function captureMarkup() {
         <div class="scanner-stage__frame" aria-hidden="true"></div>
         <p>Center one synthetic QR label inside the frame.</p>
       </div>
-      <p class="scanner-help"><a href="/demo-labels.html" target="_blank" rel="noopener">Open printable synthetic QR labels ↗</a></p>`
-    : `<div class="voice-control voice-control--${voiceState.toLowerCase()}">
-        <div><span class="voice-control__pulse"></span><strong>${escapeHtml(voiceState)}</strong></div>
+      <p class="scanner-help"><a href="/demo-labels.html" target="_blank" rel="noopener">Open printable synthetic QR labels ↗</a></p></div>`
+    : `<div class="capture-instrument ${["LIVE", "LISTENING"].includes(voiceState) ? "capture-instrument--active" : ""}"><p class="instrument-label">Voice capture</p><button type="button" id="mic-button" class="mic-symbol" aria-label="${voiceBinding ? "Cancel voice capture" : "Start live transcription"}" aria-pressed="${Boolean(voiceBinding)}"><svg aria-hidden="true" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="18" y="5" width="12" height="25" rx="6"/><path d="M12 22v3a12 12 0 0 0 24 0v-3M24 37v7m-8 0h16"/></svg></button><div class="voice-control voice-control--${voiceState.toLowerCase()}">
+        <div aria-live="polite"><span class="voice-control__pulse"></span><strong>${escapeHtml(voiceState)}</strong></div>
         <button id="voice-button" class="voice-button">${voiceBinding ? "Cancel voice capture" : "Start live transcription"}</button>
-      </div>`;
+      </div><p class="instrument-note">Speak one complete statement.<br>Review the transcript before verifying.</p></div>`;
   const currentMode = inputModeLabel(pendingInputMode);
   return `
     <section class="capture-card" aria-labelledby="capture-title">
@@ -193,7 +214,9 @@ function captureMarkup() {
         <p>${prompt.helper}</p>
         <p class="refresh-note">Unfinished sessions exist only in this tab and are discarded on refresh.</p>
       </div>
+      <div class="capture-layout">
       ${voiceControl}
+      <div class="capture-editor">
       <label class="transcript-box">
         <span>${labelMode ? "Synthetic label input" : "Statement text"}</span>
         ${labelMode
@@ -202,12 +225,13 @@ function captureMarkup() {
       </label>
       <p class="input-mode" id="input-mode">Input mode: ${escapeHtml(currentMode)} <span>client-reported, unverified</span></p>
       <div class="capture-card__actions">
-        <div class="sample-row">${sampleButtons(captureActive)}</div>
+        <details class="sample-tools"><summary>Scripted demo inputs</summary><div class="sample-row">${sampleButtons(captureActive)}</div></details>
         <div class="action-row">
           <button class="secondary-action" id="pause-button" ${captureActive ? "disabled" : ""}>Pause / unresolved discrepancy</button>
           <button class="primary-action" id="verify-button" ${captureActive ? "disabled" : ""}>Verify evidence <span>→</span></button>
         </div>
       </div>
+      </div></div>
     </section>`;
 }
 
@@ -256,22 +280,26 @@ function unresolvedMarkup() {
 function completeMarkup() {
   if (session.phase !== "COMPLETE") return "";
   const receiptMarkup = receipt ? `<div class="receipt-card">
+      <div class="receipt-banner"><span class="receipt-stamp" aria-hidden="true">✓</span><span>Evidence stored<span class="receipt-banner__sub">Server-replayed synthetic session</span></span><span class="receipt-edition">05 / RECEIPT</span></div>
       <p class="eyebrow">Server-replayed synthetic session receipt</p>
       <strong>${escapeHtml(receipt.recordId)}</strong>
       <span>Server receipt time</span>
       <code>${escapeHtml(receipt.recordedAt)}</code>
-      <span>SHA-256 evidence-core hash</span>
+      <details class="technical-details"><summary>Technical details & limitations</summary><span>SHA-256 evidence-core hash</span>
       <code>${escapeHtml(receipt.evidenceHash)}</code>
       <p>${escapeHtml(receipt.hashScope || "Legacy schema-1 hash covers its expected-order snapshot and canonical submitted audit; the server receipt time is outside that hash.")}</p>
-      <p>Workflow roles, input modes, submitted text, and event times are client-reported. This receipt does not prove speech or a physical scan occurred, that no attempt was omitted, or that clinical safety was established.</p>
+      <p>Workflow roles, input modes, submitted text, and event times are client-reported. This receipt does not prove speech or a physical scan occurred, that no attempt was omitted, or that clinical safety was established.</p></details>
     </div>` : "";
   return `
     <section class="complete-card" aria-labelledby="complete-title">
       <div class="complete-card__seal">✓</div>
       <p class="eyebrow">Synthetic evidence submission complete</p>
-      <h2 id="complete-title" tabindex="-1">Server replay found the submitted order fields, read-back fields, and label code consistent.</h2>
-      <p>A user assertion was included. SpeciLoop does not persist raw audio.</p>
+      <h2 id="complete-title" tabindex="-1">Submitted fields are consistent.</h2>
+      <p>Server replay checked the submitted order, read-back, and label code.</p>
       ${receiptMarkup}
+      <dl class="receipt-outcomes"><div><dt>Callout and read-back</dt><dd>✓ Matched</dd></div><div><dt>Label code</dt><dd>✓ Matched</dd></div><div><dt>User assertion</dt><dd>Included</dd></div></dl>
+      <p>A user assertion was included. SpeciLoop does not persist raw audio.</p>
+      <p class="receipt-limit">Synthetic data only. Does not prove speech or a physical scan occurred. Not for clinical use.</p>
       <button class="secondary-action" id="reset-button">Start a new synthetic session</button>
     </section>`;
 }
@@ -283,7 +311,7 @@ function phaseMarkup() {
     const classes = ["phase"];
     if (index === currentIndex) classes.push("phase--current");
     if (currentIndex >= 0 && index < currentIndex) classes.push("phase--done");
-    return `<div class="${classes.join(" ")}"><span>${index < currentIndex ? "✓" : String(index + 1).padStart(2, "0")}</span><strong>${label}</strong></div>`;
+    return `<div class="${classes.join(" ")}" ${index === currentIndex ? 'aria-current="step"' : ''}><span>${index < currentIndex ? "✓" : String(index + 1).padStart(2, "0")}</span><strong>${label}</strong></div>`;
   }).join("");
 }
 
@@ -302,9 +330,10 @@ function focusAfterRender() {
 
 function render() {
   root.innerHTML = `
-    <div class="app-shell">
+    <div class="app-shell ${workspaceStarted || receipt ? "app-shell--working" : "app-shell--intro"} ${motionPaused ? "motion-paused" : ""}">
+      <a class="skip-link" href="#workflow">Skip to verification</a>
       <header class="topbar">
-        <a class="brand" href="#top" aria-label="SpeciLoop home"><span class="brand__loop" aria-hidden="true"><i></i><i></i></span><span>SpeciLoop</span></a>
+        <a class="brand" href="#top" aria-label="SpeciLoop home"><span class="brand__loop" aria-hidden="true"><i></i><i></i></span><span>SpeciLoop<span class="brand__suffix"> / </span></span></a>
         <div class="topbar__statuses" aria-label="Application status">
           <span><i class="status-light"></i>Local verifier ready</span>
           <span id="global-voice-status">Voice: ${escapeHtml(voiceState)}</span>
@@ -313,10 +342,25 @@ function render() {
         <div class="synthetic-badge">SYNTHETIC DATA ONLY</div>
       </header>
       <main id="top">
-        <section class="hero">
-          <div><p class="eyebrow">Synthetic surgical specimen read-back verification</p><h1>Make the handoff<br>match the words.</h1></div>
-          <p class="hero__lede">SpeciLoop compares bounded statement fields and a synthetic label code, then blocks the simulated workflow when submitted evidence disagrees.</p>
+        <section class="hero" aria-labelledby="intro-title">
+          <div class="hero__copy">
+            <p class="eyebrow"><span class="edition-mark">01 /</span> Voice-assisted specimen handoff</p>
+            <h1 id="intro-title">A clear handoff.<br><em>One step<br>at a time.</em></h1>
+            <p class="hero__lede">Say it. Read it back. Check the label.<br>Keep the handoff on hold until the submitted details agree.</p>
+            <button id="begin-session" class="primary-action hero__action">${session.audit.length > 1 ? "Continue synthetic demo" : "Start synthetic demo"}<span aria-hidden="true">↗</span></button>
+            <p class="hero__scope">A working prototype. Synthetic data only.<br>Not for clinical use.</p>
+          </div>
+          <div class="loop-diagram" role="img" aria-label="Animated concept illustration of a synthetic specimen label. Decorative motion, not live verification status.">
+            <div class="hero-orbit hero-orbit--outer" aria-hidden="true"></div><div class="hero-orbit hero-orbit--inner" aria-hidden="true"></div>
+            <span class="hero-node hero-node--voice" aria-hidden="true">01 / Spoken statement</span><span class="hero-node hero-node--label" aria-hidden="true">03 / Label reference</span>
+            <div class="specimen-object"><span class="object-brand">SpeciLoop /</span><span class="object-category">SYNTHETIC SPECIMEN</span><strong>OR–204</strong><p>Left thyroid lobe<br>Permanent pathology<br>1 container</p><span class="object-code">SL-OR204-01</span><span class="object-bottom">DEMO LABEL · NOT FOR CLINICAL USE</span></div>
+            <span class="object-caption">A shared reference.<br>Every step, the same details.</span>
+          </div>
+          <div class="hero-motion"><span>VOICE → READ-BACK → LABEL → CONFIRM → RECEIPT</span><button type="button" id="motion-toggle" aria-pressed="${motionPaused}">${motionPaused ? "Resume animation" : "Pause animation"}</button></div>
+          <div class="hero__rail">${["Callout", "Read-back", "Label", "Confirm", "Receipt"].map((label, index) => `<span><b>0${index + 1}</b>${label}</span>`).join("")}</div>
         </section>
+        <section id="workflow" class="workflow-section" tabindex="-1" ${workspaceStarted || receipt ? "" : "hidden"}>
+        <div class="workspace-heading"><div><p class="eyebrow">PRECISION STUDIO / SYNTHETIC SESSION</p><h1>Handoff workspace<span>.</span></h1></div><div class="workspace-tools"><button id="about-demo" class="text-button">About this demo ↗</button><button id="open-evidence" class="secondary-action">Evidence trail · ${session.audit.length}</button></div></div>
         <nav class="phase-nav" aria-label="Verification progress">${phaseMarkup()}</nav>
         <div class="workspace">
           <div class="workspace__main">
@@ -338,6 +382,7 @@ function render() {
           </div>
           ${evidenceMarkup()}
         </div>
+        </section>
       </main>
       <footer><span>Prototype · synthetic data · not for clinical use</span><span>Voice connects only when started · storage status shown above</span></footer>
     </div>`;
@@ -358,6 +403,33 @@ function setPendingModeAfterManualEdit() {
 }
 
 function bindEvents() {
+  document.querySelector("#motion-toggle")?.addEventListener("click", (event) => {
+    motionPaused = !motionPaused;
+    document.querySelector(".app-shell")?.classList.toggle("motion-paused", motionPaused);
+    event.currentTarget.setAttribute("aria-pressed", String(motionPaused));
+    event.currentTarget.textContent = motionPaused ? "Resume animation" : "Pause animation";
+  });
+  document.querySelector("#open-evidence")?.addEventListener("click", () => document.querySelector("#evidence-dialog")?.showModal());
+  document.querySelector("#close-evidence")?.addEventListener("click", () => document.querySelector("#evidence-dialog")?.close());
+  document.querySelector("#begin-session")?.addEventListener("click", () => {
+    workspaceStarted = true;
+    document.querySelector(".app-shell")?.classList.add("app-shell--working");
+    document.querySelector("#workflow").hidden = false;
+    document.querySelector("#capture-title")?.focus({ preventScroll: true });
+    document.querySelector("#workflow")?.scrollIntoView({ block: "start" });
+  });
+  document.querySelector(".skip-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    workspaceStarted = true;
+    document.querySelector(".app-shell")?.classList.add("app-shell--working");
+    document.querySelector("#workflow").hidden = false;
+    document.querySelector("#workflow")?.focus();
+  });
+  document.querySelector("#about-demo")?.addEventListener("click", () => {
+    // Do not rerender live media elements while capture owns the current phase.
+    document.querySelector(".app-shell")?.classList.remove("app-shell--working");
+    document.querySelector("#intro-title")?.scrollIntoView({ block: "start" });
+  });
   const renderedOrigin = { sessionId: session.id, phase: session.phase };
   document.querySelectorAll("[data-sample]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -388,6 +460,7 @@ function bindEvents() {
   document.querySelector("#pause-button")?.addEventListener("click", () => pauseUnresolved(renderedOrigin));
   document.querySelector("#scanner-button")?.addEventListener("click", () => toggleScanner(renderedOrigin));
   document.querySelector("#voice-button")?.addEventListener("click", () => toggleVoice(renderedOrigin));
+  document.querySelector("#mic-button")?.addEventListener("click", () => toggleVoice(renderedOrigin));
 
   document.querySelector("#confirmation-check")?.addEventListener("change", (event) => {
     confirmed = event.target.checked;
@@ -551,6 +624,7 @@ function updateVoiceUi(status) {
   if (statusText) statusText.textContent = status;
   if (globalStatus) globalStatus.textContent = `Voice: ${status}`;
   control?.classList.toggle("voice-control--live", ["CONNECTING", "LIVE", "LISTENING"].includes(status));
+  document.querySelector(".capture-instrument")?.classList.toggle("capture-instrument--active", ["LIVE", "LISTENING"].includes(status));
 }
 
 function updateScannerUi(status) {

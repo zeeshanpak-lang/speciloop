@@ -54,7 +54,11 @@ try {
   const app = await fetch(`http://127.0.0.1:${port}/src/app.js`);
   assert.equal(app.status, 200);
   const appSource = await app.text();
-  assert.match(appSource, /Make the handoff/);
+  assert.match(appSource, /A clear handoff/);
+  assert.match(appSource, /Handoff workspace/);
+  const stylesheet = await fetch(`http://127.0.0.1:${port}/src/precision.css`);
+  assert.equal(stylesheet.status, 200);
+  assert.match(await stylesheet.text(), /\.workflow-section/);
   assert.match(appSource, /Local verifier ready/);
   assert.match(appSource, /SpeciLoop does not persist raw audio/);
   assert.doesNotMatch(appSource, /Deterministic verifier online|AssemblyAI U3\.5 Pro live/);

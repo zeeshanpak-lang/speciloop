@@ -1,0 +1,78 @@
+/* QA4: laptop density, readable supporting text, receipt hierarchy. */
+.workspace-heading{padding-block:12px}
+.case-card{padding:12px 18px;margin:14px 0 16px;gap:8px 20px}
+.case-status,.order-grid dt{font-size:11px;letter-spacing:.025em}
+.order-grid dd{font-size:13px}
+.scope-note{font-size:12px;line-height:1.5;color:#52604b}
+.capture-card__prompt{margin-bottom:16px}
+.capture-card__prompt p{margin:8px 0;line-height:1.5}
+.capture-card__prompt .refresh-note{font-size:12px;color:#58634f}
+.role-chip{font-size:11px;margin-bottom:8px;padding:4px 10px}
+.capture-card h2{font-size:clamp(26px,2.45vw,35px);margin-bottom:8px}
+.result{padding:11px 14px;margin-bottom:14px}
+.result .eyebrow{font-size:10px}
+.result p:last-child{font-size:12px;line-height:1.5}
+.capture-instrument{min-height:300px;padding:20px}
+.instrument-label{margin-bottom:10px;font-size:12px}
+.mic-symbol{margin:10px 0 22px}
+.instrument-note{font-size:12px;margin-top:12px}
+.voice-control,.scanner-control{gap:12px}
+.voice-control strong,.scanner-control strong{font-size:12px}
+.capture-editor{padding:18px}
+.transcript-box textarea{min-height:140px}
+.input-mode{font-size:12px;line-height:1.5;margin:8px 0 14px;color:#52604b}
+.secondary-action,.sample,.sample-tools summary,.scanner-help{font-size:12px}
+.review-grid{margin:16px 0}
+.review-grid dt,.review-grid small{font-size:12px;color:#52604b}
+.confirmation-card .review-grid>div{padding-block:13px}
+.complete-card{max-width:900px;margin:16px auto;padding:24px}
+.complete-card__seal{float:left;width:42px;height:42px;font-size:25px;margin:4px 18px 10px 4px}
+.complete-card>h2{font-size:clamp(26px,2.5vw,35px);margin:8px 0}
+.complete-card>.eyebrow{margin:0 0 8px;font-size:11px}
+.complete-card>p{line-height:1.5;margin-block:10px}
+.receipt-card{clear:both;padding:20px;margin:16px 0}
+.receipt-banner{padding-bottom:12px;margin-bottom:12px;flex-wrap:wrap}
+.receipt-card .receipt-banner .receipt-stamp{color:#27411e;font-weight:800}
+.receipt-card .receipt-banner .receipt-banner__sub{font-size:12px;color:#cadbbc;margin-top:4px}
+.receipt-card .receipt-banner .receipt-edition{margin-left:auto;font-size:11px;white-space:nowrap}
+.receipt-card .eyebrow{font-size:11px}
+.receipt-card strong{padding:4px 0;margin-bottom:10px;overflow-wrap:anywhere}
+.receipt-card code,.receipt-card>span,.receipt-card p{font-size:12px;line-height:1.6}
+.receipt-card code{overflow-wrap:anywhere}
+.receipt-card .technical-details{margin-top:14px;padding-top:10px}
+.receipt-outcomes{margin:16px 0;padding:8px 16px}
+.receipt-outcomes>div{padding:6px 0}
+.receipt-limit{font-size:12px!important;color:#52604b}
+.timeline__meta,.timeline__mode{font-size:12px}
+@media(min-width:801px){
+ .hero{min-height:0;padding:28px 4vw 20px;row-gap:12px;column-gap:38px}
+ .hero__copy{padding:0}
+ .hero h1{font-size:clamp(46px,5vw,74px);margin:18px 0;line-height:1.06}
+ .hero__lede{margin-block:14px;line-height:1.6}
+ .hero__scope{margin-bottom:0}
+ .loop-diagram{min-height:400px}
+ .specimen-object{width:260px;padding:22px}
+ .object-brand{margin-bottom:20px}
+ .object-caption{right:12px;bottom:0}
+ .hero-node--voice{top:6%;left:2%}
+ .hero-node--label{bottom:12%;right:2%}
+ .hero-motion{margin-top:0}
+ .hero__rail>span{padding:12px 0 4px}
+ .hero__rail b{margin-bottom:5px}
+}
+@media(max-width:800px){
+ .workspace-heading{padding:12px 20px}
+ .case-card{padding:12px}
+ .complete-card{padding:20px}
+}
+@media(max-width:540px){
+ .capture-instrument{min-height:0;padding:20px}
+ .mic-symbol{margin:8px 0}
+ .capture-editor{padding:16px}
+ .complete-card__seal{float:none;margin:4px 0 18px}
+ .receipt-card{padding:16px}
+ .receipt-banner{gap:10px}
+ .receipt-card .receipt-banner .receipt-edition{display:none}
+ .case-status,.order-grid dt{font-size:11px}
+ .scope-note{font-size:12px}
+}
